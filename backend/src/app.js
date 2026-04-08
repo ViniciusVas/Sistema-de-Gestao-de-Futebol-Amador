@@ -1,13 +1,35 @@
 import express from 'express';
 import cors from 'cors';
+import dotenv from 'dotenv';
+
+// ROTAS
+import authRoutes from './routes/authRoutes.js';
+
+// MIDDLEWARE
+import { authMiddleware } from './middlewares/authMiddleware.js';
+
+dotenv.config();
 
 const app = express();
 
+// 🔧 MIDDLEWARES GLOBAIS
 app.use(cors());
 app.use(express.json());
 
+// 🧪 ROTA DE TESTE
 app.get('/test', (req, res) => {
   res.json({ message: 'API funcionando 🚀' });
+});
+
+// 🔐 ROTAS DE AUTENTICAÇÃO
+app.use('/auth', authRoutes);
+
+// 🔒 ROTA PROTEGIDA (teste)
+app.get('/perfil', authMiddleware, (req, res) => {
+  res.json({
+    mensagem: 'Acesso autorizado',
+    user: req.user
+  });
 });
 
 export default app;
