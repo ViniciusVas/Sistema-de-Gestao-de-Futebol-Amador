@@ -18,4 +18,16 @@ model Organizador {
   email         String   @unique
   senha         String
   dataCadastro  DateTime @default(now())
+  jogadores     Jogador[]
+}
+
+model Jogador {
+  id              Int      @id @default(autoincrement())
+  nome            String
+  nivel_estrelas  Float    @default(3.0)
+  ativo           Boolean  @default(true)
+  dataCadastro    DateTime @default(now())
+
+  organizadorId   Int
+  organizador     Organizador @relation(fields: [organizadorId], references: [id])
 }

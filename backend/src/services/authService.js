@@ -41,5 +41,12 @@ export async function login({ email, senha }) {
     { expiresIn: "1d" }
   );
 
-  return { user, token };
+  return {
+  token,
+  user: {
+    id: user.id,
+    nome: user.nome,
+    email: user.email
+  }
+};
 }
