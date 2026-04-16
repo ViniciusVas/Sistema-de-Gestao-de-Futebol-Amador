@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 // ROTAS
 import authRoutes from './routes/authRoutes.js';
 import jogadoresRoutes from './routes/jogadores.js';
+import peladaRoutes from "./routes/peladaRoutes.js";
 
 // MIDDLEWARE
 import { authMiddleware } from './middlewares/authMiddleware.js';
@@ -27,6 +28,9 @@ app.use('/auth', authRoutes);
 
 // 🎮 ROTAS DE JOGADORES (PROTEGIDAS)
 app.use('/jogadores', jogadoresRoutes);
+
+// ⚽ ROTAS DE PELADAS (PROTEGIDAS)
+app.use("/peladas", peladaRoutes);
 
 // 🔒 ROTA PROTEGIDA (teste)
 app.get('/perfil', authMiddleware, (req, res) => {
