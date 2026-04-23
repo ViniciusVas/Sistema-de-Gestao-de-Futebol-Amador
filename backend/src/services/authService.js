@@ -2,7 +2,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { prisma } from "../config/prisma.js";
 
-export async function register({ nome, email, senha }) {
+export async function register({ name, email, password }) {
   const userExists = await prisma.organizador.findUnique({
     where: { email }
   });
@@ -11,11 +11,11 @@ export async function register({ nome, email, senha }) {
     throw new Error("Email já cadastrado");
   }
 
-  const senhaHash = await bcrypt.hash(senha, 10);
+  const senhaHash = await bcrypt.hash(password, 10);
 
   const user = await prisma.organizador.create({
     data: {
-      nome,
+      nome: name,
       email,
       senha: senhaHash
     }
@@ -24,14 +24,14 @@ export async function register({ nome, email, senha }) {
   return user;
 }
 
-export async function login({ email, senha }) {
+export async function login({ email, password }) {
   const user = await prisma.organizador.findUnique({
     where: { email }
   });
 
   if (!user) throw new Error("Usuário não encontrado");
 
-  const senhaValida = await bcrypt.compare(senha, user.senha);
+  const senhaValida = await bcrypt.compare(password, user.senha);
 
   if (!senhaValida) throw new Error("Senha inválida");
 
@@ -45,7 +45,7 @@ export async function login({ email, senha }) {
   token,
   user: {
     id: user.id,
-    nome: user.nome,
+    name: user.nome,
     email: user.email
   }
 };

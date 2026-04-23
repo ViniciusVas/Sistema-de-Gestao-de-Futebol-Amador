@@ -15,25 +15,28 @@ dotenv.config();
 const app = express();
 
 // 🔧 MIDDLEWARES GLOBAIS
-app.use(cors());
+app.use(cors({
+  origin: process.env.FRONTEND_URL,
+  credentials: true
+}));
 app.use(express.json());
 
 // 🧪 ROTA DE TESTE
-app.get('/test', (req, res) => {
+app.get('/api/test', (req, res) => {
   res.json({ message: 'API funcionando 🚀' });
 });
 
 // 🔐 ROTAS DE AUTENTICAÇÃO
-app.use('/auth', authRoutes);
+app.use('/api/auth', authRoutes);
 
 // 🎮 ROTAS DE JOGADORES (PROTEGIDAS)
-app.use('/jogadores', jogadoresRoutes);
+app.use('/api/jogadores', jogadoresRoutes);
 
 // ⚽ ROTAS DE PELADAS (PROTEGIDAS)
-app.use("/peladas", peladaRoutes);
+app.use("/api/peladas", peladaRoutes);
 
 // 🔒 ROTA PROTEGIDA (teste)
-app.get('/perfil', authMiddleware, (req, res) => {
+app.get('/api/perfil', authMiddleware, (req, res) => {
   res.json({
     mensagem: 'Acesso autorizado',
     user: req.user
