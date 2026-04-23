@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import authRoutes from './routes/authRoutes.js';
 import jogadoresRoutes from './routes/jogadores.js';
 import peladaRoutes from "./routes/peladaRoutes.js";
+import sorteioRoutes from "./routes/sorteioRoutes.js";
 
 // MIDDLEWARE
 import { authMiddleware } from './middlewares/authMiddleware.js';
@@ -34,6 +35,9 @@ app.use('/api/jogadores', jogadoresRoutes);
 
 // ⚽ ROTAS DE PELADAS (PROTEGIDAS)
 app.use("/api/peladas", peladaRoutes);
+
+// 🎲 ROTA DE SORTEIO (PROTEGIDA)
+app.use("/api", sorteioRoutes);
 
 // 🔒 ROTA PROTEGIDA (teste)
 app.get('/api/perfil', authMiddleware, (req, res) => {
