@@ -1,6 +1,6 @@
 import { prisma } from "../config/prisma.js";
 
-// ✅ CRIAR PELADA
+// CRIAR PELADA
 export const criarPelada = async (req, res) => {
   try {
     const pelada = await prisma.pelada.create({
@@ -24,7 +24,7 @@ export const criarPelada = async (req, res) => {
   }
 };
 
-// ✅ LISTAR PELADAS
+// LISTAR PELADAS
 export const listarPeladas = async (req, res) => {
   try {
     const peladas = await prisma.pelada.findMany({
@@ -42,7 +42,7 @@ export const listarPeladas = async (req, res) => {
   }
 };
 
-// ✅ DETALHAR PELADA (🔥 PRINCIPAL CORREÇÃO)
+// DETALHAR PELADA
 export const detalharPelada = async (req, res) => {
   const { id } = req.params;
 
@@ -65,7 +65,7 @@ export const detalharPelada = async (req, res) => {
       return res.status(404).json({ error: "Pelada não encontrada" });
     }
 
-    // 🔥 TRANSFORMAÇÃO PARA O FRONTEND
+    // TRANSFORMAÇÃO PARA O FRONTEND
     const inscritos = pelada.jogadores.map(pj => ({
       id: pj.id,
       jogador: pj.jogador_id,
@@ -90,7 +90,7 @@ export const detalharPelada = async (req, res) => {
   }
 };
 
-// ✅ ADICIONAR JOGADOR
+// ADICIONAR JOGADOR
 export const adicionarJogador = async (req, res) => {
   const { id } = req.params;
   const { jogador_id } = req.body;
@@ -130,7 +130,7 @@ export const adicionarJogador = async (req, res) => {
   }
 };
 
-// ✅ REMOVER JOGADOR
+// REMOVER JOGADOR
 export const removerJogador = async (req, res) => {
   const { id, jogadorId } = req.params;
 
@@ -150,7 +150,7 @@ export const removerJogador = async (req, res) => {
   }
 };
 
-// ✅ REORDENAR JOGADORES (🔥 corrigido para bater com frontend)
+// REORDENAR JOGADORES
 export const reordenar = async (req, res) => {
   const { id } = req.params;
   const { ordem } = req.body; // array de jogador_id
@@ -178,7 +178,7 @@ export const reordenar = async (req, res) => {
   }
 };
 
-// ✅ CONFIRMAR PRESENÇA (🔥 corrigido para frontend)
+// CONFIRMAR PRESENÇA
 export const confirmarPresenca = async (req, res) => {
   const { id } = req.params;
   const { jogador_id, confirmar } = req.body;

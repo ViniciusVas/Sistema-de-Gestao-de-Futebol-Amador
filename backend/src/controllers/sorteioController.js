@@ -111,7 +111,7 @@ export const ajustarTimes = async (req, res) => {
   const { jogadorId, novoTimeId } = req.body;
 
   try {
-    // 🔎 Encontrar o vínculo atual
+    // Encontrar o vínculo atual
     const registro = await prisma.timeJogador.findFirst({
       where: { jogador_id: jogadorId },
       include: { time: true }
@@ -123,13 +123,13 @@ export const ajustarTimes = async (req, res) => {
 
     const timeAntigoId = registro.time_id;
 
-    // 🔄 Atualizar para novo time
+    // Atualizar para novo time
     await prisma.timeJogador.update({
       where: { id: registro.id },
       data: { time_id: novoTimeId }
     });
 
-    // 🔁 Recalcular soma dos dois times
+    // Recalcular soma dos dois times
     const recalcularSoma = async (timeId) => {
       const jogadores = await prisma.timeJogador.findMany({
         where: { time_id: timeId },
