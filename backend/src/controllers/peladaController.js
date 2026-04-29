@@ -1,5 +1,6 @@
 import { prisma } from "../config/prisma.js";
 
+// ✅ CRIAR PELADA
 export const criarPelada = async (req, res) => {
   try {
     const pelada = await prisma.pelada.create({
@@ -11,7 +12,6 @@ export const criarPelada = async (req, res) => {
         jogadores_por_time: req.body.jogadores_por_time,
         times_simultaneos: req.body.times_simultaneos,
         valor_por_jogador: req.body.valor_por_jogador,
-
         organizador: {
           connect: { id: req.user.id }
         }
@@ -24,6 +24,7 @@ export const criarPelada = async (req, res) => {
   }
 };
 
+// ✅ LISTAR PELADAS
 export const listarPeladas = async (req, res) => {
   try {
     const peladas = await prisma.pelada.findMany({
@@ -41,6 +42,7 @@ export const listarPeladas = async (req, res) => {
   }
 };
 
+// ✅ DETALHAR PELADA (🔥 PRINCIPAL CORREÇÃO)
 export const detalharPelada = async (req, res) => {
   const { id } = req.params;
 
@@ -59,23 +61,46 @@ export const detalharPelada = async (req, res) => {
       }
     });
 
-    res.json(pelada);
+    if (!pelada) {
+      return res.status(404).json({ error: "Pelada não encontrada" });
+    }
+
+    // 🔥 TRANSFORMAÇÃO PARA O FRONTEND
+    const inscritos = pelada.jogadores.map(pj => ({
+      id: pj.id,
+      jogador: pj.jogador_id,
+      jogador_nome: pj.jogador.nome,
+      jogador_nivel: pj.jogador.nivel_estrelas,
+      ordem_chegada: pj.ordem_chegada,
+      presenca_confirmada: pj.presenca_confirmada,
+      pagamento_confirmado: pj.pagamento_confirmado
+    }));
+
+    res.json({
+      id: pelada.id,
+      titulo: pelada.titulo,
+      data_hora: pelada.data_hora,
+      local: pelada.local,
+      status: pelada.status,
+      inscritos
+    });
+
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
+// ✅ ADICIONAR JOGADOR
 export const adicionarJogador = async (req, res) => {
   const { id } = req.params;
-  const { jogadorId } = req.body;
+  const { jogador_id } = req.body;
 
   try {
-    // evitar duplicado
     const existe = await prisma.peladaJogador.findUnique({
       where: {
         pelada_id_jogador_id: {
           pelada_id: Number(id),
-          jogador_id: jogadorId
+          jogador_id: Number(jogador_id)
         }
       }
     });
@@ -84,7 +109,6 @@ export const adicionarJogador = async (req, res) => {
       return res.status(400).json({ error: "Jogador já está na pelada" });
     }
 
-    // pegar última ordem
     const ultimo = await prisma.peladaJogador.findFirst({
       where: { pelada_id: Number(id) },
       orderBy: { ordem_chegada: "desc" }
@@ -95,7 +119,7 @@ export const adicionarJogador = async (req, res) => {
     const relacao = await prisma.peladaJogador.create({
       data: {
         pelada_id: Number(id),
-        jogador_id: jogadorId,
+        jogador_id: Number(jogador_id),
         ordem_chegada: novaOrdem
       }
     });
@@ -106,6 +130,7 @@ export const adicionarJogador = async (req, res) => {
   }
 };
 
+// ✅ REMOVER JOGADOR
 export const removerJogador = async (req, res) => {
   const { id, jogadorId } = req.params;
 
@@ -125,14 +150,23 @@ export const removerJogador = async (req, res) => {
   }
 };
 
+// ✅ REORDENAR JOGADORES (🔥 corrigido para bater com frontend)
 export const reordenar = async (req, res) => {
-  const { ordem } = req.body;
+  const { id } = req.params;
+  const { ordem } = req.body; // array de jogador_id
 
   try {
-    const updates = ordem.map((id, index) =>
+    const updates = ordem.map((jogadorId, index) =>
       prisma.peladaJogador.update({
-        where: { id },
-        data: { ordem_chegada: index + 1 }
+        where: {
+          pelada_id_jogador_id: {
+            pelada_id: Number(id),
+            jogador_id: Number(jogadorId)
+          }
+        },
+        data: {
+          ordem_chegada: index + 1
+        }
       })
     );
 
@@ -144,18 +178,23 @@ export const reordenar = async (req, res) => {
   }
 };
 
+// ✅ CONFIRMAR PRESENÇA (🔥 corrigido para frontend)
 export const confirmarPresenca = async (req, res) => {
-  const { jogadores } = req.body;
+  const { id } = req.params;
+  const { jogador_id, confirmar } = req.body;
 
   try {
-    const updates = jogadores.map(j =>
-      prisma.peladaJogador.update({
-        where: { id: j.id },
-        data: { presenca_confirmada: j.presenca_confirmada }
-      })
-    );
-
-    await prisma.$transaction(updates);
+    await prisma.peladaJogador.update({
+      where: {
+        pelada_id_jogador_id: {
+          pelada_id: Number(id),
+          jogador_id: Number(jogador_id)
+        }
+      },
+      data: {
+        presenca_confirmada: confirmar
+      }
+    });
 
     res.json({ message: "Presença atualizada" });
   } catch (error) {

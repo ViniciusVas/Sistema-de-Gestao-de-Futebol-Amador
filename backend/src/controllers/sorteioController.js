@@ -106,3 +106,71 @@ export const listarTimes = async (req, res) => {
 
   res.json(times);
 };
+
+export const ajustarTimes = async (req, res) => {
+  const { jogadorId, novoTimeId } = req.body;
+
+  try {
+    // 🔎 Encontrar o vínculo atual
+    const registro = await prisma.timeJogador.findFirst({
+      where: { jogador_id: jogadorId },
+      include: { time: true }
+    });
+
+    if (!registro) {
+      return res.status(404).json({ error: "Jogador não está em nenhum time" });
+    }
+
+    const timeAntigoId = registro.time_id;
+
+    // 🔄 Atualizar para novo time
+    await prisma.timeJogador.update({
+      where: { id: registro.id },
+      data: { time_id: novoTimeId }
+    });
+
+    // 🔁 Recalcular soma dos dois times
+    const recalcularSoma = async (timeId) => {
+      const jogadores = await prisma.timeJogador.findMany({
+        where: { time_id: timeId },
+        include: { jogador: true }
+      });
+
+      const soma = jogadores.reduce(
+        (acc, j) => acc + j.jogador.nivel_estrelas,
+        0
+      );
+
+      await prisma.timePelada.update({
+        where: { id: timeId },
+        data: { soma_estrelas: soma }
+      });
+    };
+
+    await recalcularSoma(timeAntigoId);
+    await recalcularSoma(novoTimeId);
+
+    res.json({ message: "Jogador movido com sucesso" });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const confirmarTimes = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    await prisma.pelada.update({
+      where: { id: Number(id) },
+      data: {
+        status: "em_andamento"
+      }
+    });
+
+    res.json({ message: "Times confirmados e jogo iniciado" });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
