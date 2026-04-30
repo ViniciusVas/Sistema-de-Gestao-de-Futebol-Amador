@@ -80,6 +80,8 @@ model TimePelada {
   soma_estrelas Float
   pelada_id     Int
 
+  ordem         Int
+
   pelada    Pelada        @relation(fields: [pelada_id], references: [id])
   jogadores TimeJogador[]
 }
@@ -91,4 +93,6 @@ model TimeJogador {
 
   time    TimePelada @relation(fields: [time_id], references: [id])
   jogador Jogador    @relation(fields: [jogador_id], references: [id])
+
+  @@unique([time_id, jogador_id]) // evita duplicado no mesmo time
 }

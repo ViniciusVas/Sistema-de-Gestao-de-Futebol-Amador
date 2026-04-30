@@ -7,6 +7,7 @@ import authRoutes from './routes/authRoutes.js';
 import jogadoresRoutes from './routes/jogadores.js';
 import peladaRoutes from "./routes/peladaRoutes.js";
 import sorteioRoutes from "./routes/sorteioRoutes.js";
+import timeRoutes from "./routes/timeRoutes.js";
 
 // MIDDLEWARE
 import { authMiddleware } from './middlewares/authMiddleware.js';
@@ -38,6 +39,9 @@ app.use("/api/peladas", peladaRoutes);
 
 // 🎲 ROTA DE SORTEIO (PROTEGIDA)
 app.use("/api", sorteioRoutes);
+
+// 🏆 ROTAS DE TIMES (PROTEGIDAS)
+app.use("/api", timeRoutes);
 
 // 🔒 ROTA PROTEGIDA (teste)
 app.get('/api/perfil', authMiddleware, (req, res) => {

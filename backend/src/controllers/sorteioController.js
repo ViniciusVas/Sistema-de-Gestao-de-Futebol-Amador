@@ -6,10 +6,12 @@ export const sortearTimes = async (req, res) => {
   const { tipo } = req.query;
 
   try {
+    const peladaId = Number(id);
+
     // 1. Buscar jogadores confirmados
     const peladaJogadores = await prisma.peladaJogador.findMany({
       where: {
-        pelada_id: Number(id),
+        pelada_id: peladaId,
         presenca_confirmada: true
       },
       include: {
@@ -25,7 +27,7 @@ export const sortearTimes = async (req, res) => {
 
     // 2. Buscar config da pelada
     const pelada = await prisma.pelada.findUnique({
-      where: { id: Number(id) }
+      where: { id: peladaId }
     });
 
     const numTimes = pelada.times_simultaneos;
@@ -39,38 +41,42 @@ export const sortearTimes = async (req, res) => {
       resultado = sortearAleatorio(jogadores, numTimes);
     }
 
-    // 4. Limpar times antigos (se já existirem)
+    // 4. Limpar times antigos
     await prisma.timeJogador.deleteMany({
       where: {
-        time: { pelada_id: Number(id) }
+        time: { pelada_id: peladaId }
       }
     });
 
     await prisma.timePelada.deleteMany({
-      where: { pelada_id: Number(id) }
+      where: { pelada_id: peladaId }
     });
 
-    // 5. Salvar novos times
+    // 5. Criar novos times COM ORDEM
     const timesCriados = [];
 
     for (let i = 0; i < resultado.length; i++) {
       const timeData = resultado[i];
 
-      const jogadoresTime = tipo === "balanceado" ? timeData.jogadores : timeData;
+      const jogadoresTime =
+        tipo === "balanceado" ? timeData.jogadores : timeData;
 
       const soma = jogadoresTime.reduce(
         (acc, j) => acc + j.nivel_estrelas,
         0
       );
 
+      // 🔥 CRIA TIME COM ORDEM
       const time = await prisma.timePelada.create({
         data: {
           nome_time: `Time ${i + 1}`,
           soma_estrelas: soma,
-          pelada_id: Number(id)
+          pelada_id: peladaId,
+          ordem: i + 1 // 🔥 ESSENCIAL PRA SPRINT 6
         }
       });
 
+      // 🔗 VINCULAR JOGADORES AO TIME
       for (const jogador of jogadoresTime) {
         await prisma.timeJogador.create({
           data: {
@@ -83,7 +89,10 @@ export const sortearTimes = async (req, res) => {
       timesCriados.push(time);
     }
 
-    return res.json({ message: "Times sorteados com sucesso", timesCriados });
+    return res.json({
+      message: "Times sorteados com sucesso",
+      times: timesCriados
+    });
 
   } catch (error) {
     return res.status(500).json({ error: error.message });
@@ -161,6 +170,7 @@ export const confirmarTimes = async (req, res) => {
   const { id } = req.params;
 
   try {
+    // 1. Atualiza status da pelada
     await prisma.pelada.update({
       where: { id: Number(id) },
       data: {
@@ -168,7 +178,22 @@ export const confirmarTimes = async (req, res) => {
       }
     });
 
-    res.json({ message: "Times confirmados e jogo iniciado" });
+    // 2. Buscar os times
+    const times = await prisma.timePelada.findMany({
+      where: { pelada_id: Number(id) },
+      orderBy: { id: "asc" }
+    });
+
+    // 3. Definir a ordem (fila)
+    for (let i = 0; i < times.length; i++) {
+      await prisma.timePelada.update({
+        where: { id: times[i].id },
+        data: { ordem: i + 1 }
+      });
+    }
+
+    // resposta
+    res.json({ message: "Times confirmados e fila organizada" });
 
   } catch (error) {
     res.status(500).json({ error: error.message });
