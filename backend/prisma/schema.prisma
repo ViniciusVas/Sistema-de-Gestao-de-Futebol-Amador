@@ -81,6 +81,7 @@ model TimePelada {
   pelada_id     Int
 
   ordem         Int
+  em_jogo       Boolean @default(false)
 
   pelada    Pelada        @relation(fields: [pelada_id], references: [id])
   jogadores TimeJogador[]

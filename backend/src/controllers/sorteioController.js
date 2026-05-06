@@ -8,15 +8,12 @@ export const sortearTimes = async (req, res) => {
   try {
     const peladaId = Number(id);
 
-    // 1. Buscar jogadores confirmados
     const peladaJogadores = await prisma.peladaJogador.findMany({
       where: {
         pelada_id: peladaId,
         presenca_confirmada: true
       },
-      include: {
-        jogador: true
-      }
+      include: { jogador: true }
     });
 
     const jogadores = peladaJogadores.map(pj => pj.jogador);
@@ -25,58 +22,59 @@ export const sortearTimes = async (req, res) => {
       return res.status(400).json({ error: "Nenhum jogador confirmado" });
     }
 
-    // 2. Buscar config da pelada
     const pelada = await prisma.pelada.findUnique({
       where: { id: peladaId }
     });
 
-    const numTimes = pelada.times_simultaneos;
-
-    let resultado;
-
-    // 3. Sortear
-    if (tipo === "balanceado") {
-      resultado = sortearBalanceado(jogadores, numTimes);
-    } else {
-      resultado = sortearAleatorio(jogadores, numTimes);
+    // 🔥 VALIDAÇÃO IMPORTANTE
+    if (!pelada) {
+      return res.status(404).json({ error: "Pelada não encontrada" });
     }
 
-    // 4. Limpar times antigos
+    const numTimes = pelada.times_simultaneos;
+
+    let resultado =
+      tipo === "balanceado"
+        ? sortearBalanceado(jogadores, numTimes, pelada.jogadores_por_time)
+        : sortearAleatorio(jogadores, numTimes, pelada.jogadores_por_time);
+
+    // 🔥 limpar
     await prisma.timeJogador.deleteMany({
-      where: {
-        time: { pelada_id: peladaId }
-      }
+      where: { time: { pelada_id: peladaId } }
     });
 
     await prisma.timePelada.deleteMany({
       where: { pelada_id: peladaId }
     });
 
-    // 5. Criar novos times COM ORDEM
+    const usadosIds = resultado.flatMap(t =>
+      (tipo === "balanceado" ? t.jogadores : t).map(j => j.id)
+    );
+
+    const sobrando = jogadores.filter(j => !usadosIds.includes(j.id));
+
     const timesCriados = [];
 
+    // 🔥 criar times principais (jogando)
     for (let i = 0; i < resultado.length; i++) {
-      const timeData = resultado[i];
-
       const jogadoresTime =
-        tipo === "balanceado" ? timeData.jogadores : timeData;
+        tipo === "balanceado" ? resultado[i].jogadores : resultado[i];
 
       const soma = jogadoresTime.reduce(
         (acc, j) => acc + j.nivel_estrelas,
         0
       );
 
-      // 🔥 CRIA TIME COM ORDEM
       const time = await prisma.timePelada.create({
         data: {
           nome_time: `Time ${i + 1}`,
           soma_estrelas: soma,
           pelada_id: peladaId,
-          ordem: i + 1 // 🔥 ESSENCIAL PRA SPRINT 6
+          ordem: i + 1,
+          em_jogo: true
         }
       });
 
-      // 🔗 VINCULAR JOGADORES AO TIME
       for (const jogador of jogadoresTime) {
         await prisma.timeJogador.create({
           data: {
@@ -89,13 +87,42 @@ export const sortearTimes = async (req, res) => {
       timesCriados.push(time);
     }
 
-    return res.json({
-      message: "Times sorteados com sucesso",
-      times: timesCriados
-    });
+    // 🔥 criar times de próximas
+    let contador = resultado.length;
+
+    while (sobrando.length > 0) {
+      const grupo = sobrando.splice(0, pelada.jogadores_por_time);
+
+      const soma = grupo.reduce((acc, j) => acc + j.nivel_estrelas, 0);
+
+      contador++;
+
+      const time = await prisma.timePelada.create({
+        data: {
+          nome_time: `Time ${contador}`,
+          soma_estrelas: soma,
+          pelada_id: peladaId,
+          ordem: contador,
+          em_jogo: false
+        }
+      });
+
+      for (const jogador of grupo) {
+        await prisma.timeJogador.create({
+          data: {
+            time_id: time.id,
+            jogador_id: jogador.id
+          }
+        });
+      }
+
+      timesCriados.push(time);
+    }
+
+    res.json({ message: "Times sorteados", times: timesCriados });
 
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message });
   }
 };
 
@@ -110,19 +137,24 @@ export const listarTimes = async (req, res) => {
           jogador: true
         }
       }
-    }
+    },
+    orderBy: { ordem: "asc" } // 🔥 CORRIGIDO
   });
 
   res.json(times);
 };
 
 export const ajustarTimes = async (req, res) => {
-  const { jogadorId, novoTimeId } = req.body;
+  const { jogadorId, novoTimeId, peladaId } = req.body; // 🔥 adicionado peladaId
 
   try {
-    // Encontrar o vínculo atual
     const registro = await prisma.timeJogador.findFirst({
-      where: { jogador_id: jogadorId },
+      where: {
+        jogador_id: jogadorId,
+        time: {
+          pelada_id: peladaId // 🔥 segurança
+        }
+      },
       include: { time: true }
     });
 
@@ -132,13 +164,11 @@ export const ajustarTimes = async (req, res) => {
 
     const timeAntigoId = registro.time_id;
 
-    // Atualizar para novo time
     await prisma.timeJogador.update({
       where: { id: registro.id },
       data: { time_id: novoTimeId }
     });
 
-    // Recalcular soma dos dois times
     const recalcularSoma = async (timeId) => {
       const jogadores = await prisma.timeJogador.findMany({
         where: { time_id: timeId },
@@ -170,30 +200,29 @@ export const confirmarTimes = async (req, res) => {
   const { id } = req.params;
 
   try {
-    // 1. Atualiza status da pelada
-    await prisma.pelada.update({
-      where: { id: Number(id) },
-      data: {
-        status: "em_andamento"
-      }
+    const peladaId = Number(id);
+
+    const pelada = await prisma.pelada.update({
+      where: { id: peladaId },
+      data: { status: "em_andamento" }
     });
 
-    // 2. Buscar os times
     const times = await prisma.timePelada.findMany({
-      where: { pelada_id: Number(id) },
-      orderBy: { id: "asc" }
+      where: { pelada_id: peladaId },
+      orderBy: { ordem: "asc" }
     });
 
-    // 3. Definir a ordem (fila)
     for (let i = 0; i < times.length; i++) {
       await prisma.timePelada.update({
         where: { id: times[i].id },
-        data: { ordem: i + 1 }
+        data: {
+          ordem: i + 1,
+          em_jogo: i < pelada.times_simultaneos
+        }
       });
     }
 
-    // resposta
-    res.json({ message: "Times confirmados e fila organizada" });
+    res.json({ message: "Times confirmados corretamente" });
 
   } catch (error) {
     res.status(500).json({ error: error.message });
