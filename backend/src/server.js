@@ -7,7 +7,7 @@ dotenv.config();
 
 const server = http.createServer(app);
 
-const io = new Server(server, {
+export const io = new Server(server, {
   cors: {
     origin: process.env.FRONTEND_URL,
     methods: ["GET", "POST"],
@@ -17,10 +17,6 @@ const io = new Server(server, {
 
 io.on('connection', (socket) => {
   console.log('Cliente conectado:', socket.id);
-
-  socket.on('mensagem', (msg) => {
-    socket.emit('mensagem', msg);
-  });
 
   socket.on('disconnect', () => {
     console.log('Cliente desconectado');

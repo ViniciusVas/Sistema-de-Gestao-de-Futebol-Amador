@@ -48,6 +48,12 @@ model Pelada {
   valor_por_jogador  Float?
   status             String   @default("agendada")
 
+  placar_time1      Int      @default(0)
+  placar_time2      Int      @default(0)
+
+  tempo_restante    Int?
+  cronometro_ativo  Boolean  @default(false)
+
   organizador_id Int
   organizador    Organizador @relation(fields: [organizador_id], references: [id])
 
