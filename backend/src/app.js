@@ -30,7 +30,7 @@ app.get('/api/test', (req, res) => {
 });
 
 // 🔐 ROTAS DE AUTENTICAÇÃO
-app.use('/api/auth', authRoutes);
+app.use('/api', authRoutes);
 
 // 🎮 ROTAS DE JOGADORES (PROTEGIDAS)
 app.use('/api/jogadores', jogadoresRoutes);

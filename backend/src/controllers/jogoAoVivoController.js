@@ -1,6 +1,8 @@
 import { prisma } from "../config/prisma.js";
 import { io } from "../server.js";
 
+const intervalosCronometro = {};
+
 export const iniciarCronometro = async (req, res) => {
   try {
     const { id } = req.params;
@@ -17,7 +19,7 @@ export const iniciarCronometro = async (req, res) => {
       });
     }
 
-    const tempoInicial =
+    let tempoRestante =
       pelada.tempo_restante ??
       pelada.duracao_minutos * 60;
 
@@ -27,13 +29,59 @@ export const iniciarCronometro = async (req, res) => {
       },
       data: {
         cronometro_ativo: true,
-        tempo_restante: tempoInicial
+        tempo_restante: tempoRestante
       }
     });
 
+    // evita múltiplos intervalos para a mesma pelada
+    if (intervalosCronometro[id]) {
+      clearInterval(intervalosCronometro[id]);
+    }
+
+    intervalosCronometro[id] = setInterval(async () => {
+
+      tempoRestante--;
+
+      await prisma.pelada.update({
+        where: {
+          id: Number(id)
+        },
+        data: {
+          tempo_restante: tempoRestante
+        }
+      });
+
+      io.emit("cronometro:atualizar", {
+        peladaId: Number(id),
+        tempo_restante: tempoRestante
+      });
+
+      // quando acabar o tempo
+      if (tempoRestante <= 0) {
+
+        clearInterval(intervalosCronometro[id]);
+
+        delete intervalosCronometro[id];
+
+        await prisma.pelada.update({
+          where: {
+            id: Number(id)
+          },
+          data: {
+            cronometro_ativo: false
+          }
+        });
+
+        io.emit("cronometro:finalizado", {
+          peladaId: Number(id)
+        });
+      }
+
+    }, 1000);
+
     io.emit("cronometro:iniciar", {
       peladaId: Number(id),
-      tempo_restante: tempoInicial
+      tempo_restante: tempoRestante
     });
 
     res.json({
@@ -50,6 +98,11 @@ export const iniciarCronometro = async (req, res) => {
 export const pausarCronometro = async (req, res) => {
   try {
     const { id } = req.params;
+
+    // pausa o intervalo
+    clearInterval(intervalosCronometro[id]);
+
+    delete intervalosCronometro[id];
 
     await prisma.pelada.update({
       where: {
@@ -78,6 +131,11 @@ export const pausarCronometro = async (req, res) => {
 export const reiniciarCronometro = async (req, res) => {
   try {
     const { id } = req.params;
+
+    // remove intervalo ativo
+    clearInterval(intervalosCronometro[id]);
+
+    delete intervalosCronometro[id];
 
     const pelada = await prisma.pelada.findUnique({
       where: {
