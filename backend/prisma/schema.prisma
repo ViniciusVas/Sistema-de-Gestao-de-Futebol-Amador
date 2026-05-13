@@ -35,6 +35,9 @@ model Jogador {
   peladas       PeladaJogador[]
 
   times TimeJogador[]
+  eventos             EventoJogo[] @relation("JogadorEvento")
+
+  assistenciasEventos EventoJogo[] @relation("AssistenciaEvento")
 }
 
 model Pelada {
@@ -59,6 +62,7 @@ model Pelada {
 
   jogadores PeladaJogador[]
   times     TimePelada[]
+  eventos EventoJogo[]
 
   createdAt DateTime @default(now())
 }
@@ -86,11 +90,14 @@ model TimePelada {
   soma_estrelas Float
   pelada_id     Int
 
+  gols Int @default(0)
+
   ordem         Int
   em_jogo       Boolean @default(false)
 
   pelada    Pelada        @relation(fields: [pelada_id], references: [id])
   jogadores TimeJogador[]
+  eventos EventoJogo[]
 }
 
 model TimeJogador {
@@ -102,4 +109,29 @@ model TimeJogador {
   jogador Jogador    @relation(fields: [jogador_id], references: [id])
 
   @@unique([time_id, jogador_id]) // evita duplicado no mesmo time
+}
+
+model EventoJogo {
+  id Int @id @default(autoincrement())
+
+  pelada_id Int
+  pelada    Pelada @relation(fields: [pelada_id], references: [id])
+
+  tipo String
+  // gol
+  // cartao_amarelo
+  // cartao_vermelho
+
+  time_id Int
+  time    TimePelada @relation(fields: [time_id], references: [id])
+
+  jogador_id Int
+  jogador    Jogador @relation("JogadorEvento", fields: [jogador_id], references: [id])
+
+  jogador_assistencia_id Int?
+  jogadorAssistencia Jogador? @relation("AssistenciaEvento", fields: [jogador_assistencia_id], references: [id])
+
+  minuto Int
+
+  created_at DateTime @default(now())
 }

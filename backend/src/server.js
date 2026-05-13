@@ -16,7 +16,18 @@ export const io = new Server(server, {
 });
 
 io.on('connection', (socket) => {
+
   console.log('Cliente conectado:', socket.id);
+
+  // entrar em uma sala da pelada
+  socket.on('entrar-pelada', (peladaId) => {
+
+    socket.join(`pelada-${peladaId}`);
+
+    console.log(
+      `Socket ${socket.id} entrou na sala pelada-${peladaId}`
+    );
+  });
 
   socket.on('disconnect', () => {
     console.log('Cliente desconectado');
