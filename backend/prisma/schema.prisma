@@ -36,6 +36,7 @@ model Jogador {
 
   eventos                EventoJogo[] @relation("JogadorEvento")
   assistenciasEventos    EventoJogo[] @relation("AssistenciaEvento")
+  estatisticasPelada     EstatisticaJogadorPelada?
 }
 
 model Pelada {
@@ -148,4 +149,24 @@ model EventoJogo {
   minuto                     Int
 
   created_at                 DateTime @default(now())
+}
+
+model EstatisticaJogadorPelada {
+  id                  Int      @id @default(autoincrement())
+
+  jogadorId           Int      @unique
+  jogador             Jogador  @relation(fields: [jogadorId], references: [id])
+
+  totalJogos          Int      @default(0)
+  totalGols           Int      @default(0)
+  totalAssistencias   Int      @default(0)
+
+  totalVitorias       Int      @default(0)
+  totalEmpates        Int      @default(0)
+  totalDerrotas       Int      @default(0)
+
+  mediaGols           Float    @default(0)
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }

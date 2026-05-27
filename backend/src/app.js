@@ -10,6 +10,7 @@ import sorteioRoutes from "./routes/sorteioRoutes.js";
 import timeRoutes from "./routes/timeRoutes.js";
 import jogoAoVivoRoutes from "./routes/jogoAoVivoRoutes.js";
 import eventoRoutes from "./routes/eventoRoutes.js";
+import estatisticaRoutes from "./routes/estatisticaRoutes.js";
 
 // MIDDLEWARE
 import { authMiddleware } from './middlewares/authMiddleware.js';
@@ -50,6 +51,9 @@ app.use("/api/jogo", jogoAoVivoRoutes);
 
 // 📝 ROTAS DE EVENTOS 
 app.use("/api", eventoRoutes);
+
+// 📊 ROTAS DE ESTATÍSTICAS
+app.use("/api", estatisticaRoutes);
 
 // 🔒 ROTA PROTEGIDA (teste)
 app.get('/api/perfil', authMiddleware, (req, res) => {
