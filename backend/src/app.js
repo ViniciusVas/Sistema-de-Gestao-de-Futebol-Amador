@@ -11,6 +11,7 @@ import timeRoutes from "./routes/timeRoutes.js";
 import jogoAoVivoRoutes from "./routes/jogoAoVivoRoutes.js";
 import eventoRoutes from "./routes/eventoRoutes.js";
 import estatisticaRoutes from "./routes/estatisticaRoutes.js";
+import pagamentoRoutes from "./routes/pagamentoRoutes.js";
 
 // MIDDLEWARE
 import { authMiddleware } from './middlewares/authMiddleware.js';
@@ -54,6 +55,9 @@ app.use("/api", eventoRoutes);
 
 // 📊 ROTAS DE ESTATÍSTICAS
 app.use("/api", estatisticaRoutes);
+
+// 💰 ROTAS DE PAGAMENTOS
+app.use("/api", pagamentoRoutes);
 
 // 🔒 ROTA PROTEGIDA (teste)
 app.get('/api/perfil', authMiddleware, (req, res) => {

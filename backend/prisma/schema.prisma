@@ -51,6 +51,7 @@ model Pelada {
   times_simultaneos      Int
 
   valor_por_jogador      Float?
+  config_pagamento_visivel Boolean @default(false)
 
   status                 String   @default("agendada")
 
