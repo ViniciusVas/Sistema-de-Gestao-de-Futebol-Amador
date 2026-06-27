@@ -201,3 +201,105 @@ export const confirmarPresenca = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const atualizarPelada = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const peladaId = Number(id);
+
+    const peladaExistente = await prisma.pelada.findUnique({
+      where: {
+        id: peladaId,
+      },
+    });
+
+    if (!peladaExistente) {
+      return res.status(404).json({
+        error: "Pelada não encontrada",
+      });
+    }
+
+    if (peladaExistente.organizador_id !== req.user.id) {
+      return res.status(403).json({
+        error: "Você não tem permissão para atualizar esta pelada",
+      });
+    }
+
+    const {
+      titulo,
+      data_hora,
+      local,
+      duracao_minutos,
+      jogadores_por_time,
+      times_simultaneos,
+      valor_por_jogador,
+      config_pagamento_visivel,
+    } = req.body;
+
+    const dadosAtualizacao = {};
+
+    if (titulo !== undefined) {
+      dadosAtualizacao.titulo = titulo;
+    }
+
+    if (data_hora !== undefined) {
+      const dataConvertida = new Date(data_hora);
+
+      if (Number.isNaN(dataConvertida.getTime())) {
+        return res.status(400).json({
+          error: "Data e hora inválidas",
+        });
+      }
+
+      dadosAtualizacao.data_hora = dataConvertida;
+    }
+
+    if (local !== undefined) {
+      dadosAtualizacao.local = local;
+    }
+
+    if (duracao_minutos !== undefined) {
+      dadosAtualizacao.duracao_minutos = Number(duracao_minutos);
+    }
+
+    if (jogadores_por_time !== undefined) {
+      dadosAtualizacao.jogadores_por_time = Number(jogadores_por_time);
+    }
+
+    if (times_simultaneos !== undefined) {
+      dadosAtualizacao.times_simultaneos = Number(times_simultaneos);
+    }
+
+    if (valor_por_jogador !== undefined) {
+      dadosAtualizacao.valor_por_jogador = Number(valor_por_jogador);
+    }
+
+    if (config_pagamento_visivel !== undefined) {
+      dadosAtualizacao.config_pagamento_visivel = Boolean(
+        config_pagamento_visivel
+      );
+    }
+
+    if (Object.keys(dadosAtualizacao).length === 0) {
+      return res.status(400).json({
+        error: "Nenhum campo válido enviado para atualização",
+      });
+    }
+
+    const peladaAtualizada = await prisma.pelada.update({
+      where: {
+        id: peladaId,
+      },
+      data: dadosAtualizacao,
+    });
+
+    return res.json(peladaAtualizada);
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      error: "Erro ao atualizar pelada",
+    });
+  }
+};

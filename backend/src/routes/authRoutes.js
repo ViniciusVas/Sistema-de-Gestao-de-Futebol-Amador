@@ -4,7 +4,7 @@ import { register, login, forgotPassword } from "../controllers/authController.j
 const router = express.Router();
 
 router.post("/register", register);
-router.post("/token", login);
+router.post("/login", login);
 router.post("/forgot-password", forgotPassword);
 
 export default router;

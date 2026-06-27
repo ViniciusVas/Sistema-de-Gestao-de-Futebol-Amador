@@ -385,3 +385,236 @@ export const confirmarTimes = async (
     });
   }
 };
+
+const criarErro = (mensagem, status = 400) => {
+  const error = new Error(mensagem);
+  error.status = status;
+  return error;
+};
+
+const obterIdJogadorDoSnapshot = (item) => {
+  if (typeof item === "number" || typeof item === "string") {
+    return Number(item);
+  }
+
+  return Number(
+    item?.jogador_id ??
+      item?.jogador?.id ??
+      item?.id
+  );
+};
+
+export const restaurarTimes = async (req, res) => {
+  const { id } = req.params;
+  const { times } = req.body;
+
+  const peladaId = Number(id);
+
+  try {
+    if (!Array.isArray(times) || times.length === 0) {
+      return res.status(400).json({
+        error: "Envie ao menos um time para restaurar"
+      });
+    }
+
+    const resultado = await prisma.$transaction(async (tx) => {
+      const pelada = await tx.pelada.findUnique({
+        where: {
+          id: peladaId
+        }
+      });
+
+      if (!pelada) {
+        throw criarErro("Pelada não encontrada", 404);
+      }
+
+      /*
+        Desfazer a formação só é permitido antes da confirmação dos times.
+        Depois de iniciar a pelada, a escalação já pode ter sido usada
+        em eventos, placar, rodízio e estatísticas.
+      */
+      if (pelada.status !== "agendada") {
+        throw criarErro(
+          "Não é possível desfazer times após a confirmação ou início da pelada",
+          409
+        );
+      }
+
+      const timesNormalizados = times
+        .map((time, index) => {
+          const jogadores = Array.isArray(time.jogadores)
+            ? time.jogadores
+                .map(obterIdJogadorDoSnapshot)
+                .filter((jogadorId) => Number.isInteger(jogadorId))
+            : [];
+
+          return {
+            nome_time: time.nome_time || `Time ${index + 1}`,
+            cor: time.cor || null,
+            ordem: Number(time.ordem || index + 1),
+            em_jogo: Boolean(time.em_jogo),
+            jogadores
+          };
+        })
+        .sort((a, b) => a.ordem - b.ordem);
+
+      const possuiTimeVazio = timesNormalizados.some(
+        (time) => time.jogadores.length === 0
+      );
+
+      if (possuiTimeVazio) {
+        throw criarErro(
+          "Não é possível restaurar um time sem jogadores"
+        );
+      }
+
+      const todosJogadoresIds = timesNormalizados.flatMap(
+        (time) => time.jogadores
+      );
+
+      const idsDuplicados = todosJogadoresIds.some(
+        (jogadorId, index) =>
+          todosJogadoresIds.indexOf(jogadorId) !== index
+      );
+
+      if (idsDuplicados) {
+        throw criarErro(
+          "Um jogador não pode estar em mais de um time"
+        );
+      }
+
+      const quantidadeTimesJogando = timesNormalizados.filter(
+        (time) => time.em_jogo
+      ).length;
+
+      if (quantidadeTimesJogando > pelada.times_simultaneos) {
+        throw criarErro(
+          `A pelada permite no máximo ${pelada.times_simultaneos} times jogando ao mesmo tempo`
+        );
+      }
+
+      const jogadoresConfirmados = await tx.peladaJogador.findMany({
+        where: {
+          pelada_id: peladaId,
+          presenca_confirmada: true,
+          jogador_id: {
+            in: todosJogadoresIds
+          }
+        },
+        select: {
+          jogador_id: true,
+          jogador: {
+            select: {
+              id: true,
+              nivel_estrelas: true
+            }
+          }
+        }
+      });
+
+      if (jogadoresConfirmados.length !== todosJogadoresIds.length) {
+        throw criarErro(
+          "O histórico contém jogador não confirmado ou que não pertence a esta pelada"
+        );
+      }
+
+      const dadosJogadores = new Map(
+        jogadoresConfirmados.map((registro) => [
+          registro.jogador_id,
+          registro.jogador
+        ])
+      );
+
+      /*
+        A restauração acontece apenas na fase de sorteio.
+        Mesmo assim, removemos qualquer evento e resetamos os dados de jogo
+        para manter a pelada em um estado consistente.
+      */
+      await tx.eventoJogo.deleteMany({
+        where: {
+          pelada_id: peladaId
+        }
+      });
+
+      await tx.timeJogador.deleteMany({
+        where: {
+          time: {
+            pelada_id: peladaId
+          }
+        }
+      });
+
+      await tx.timePelada.deleteMany({
+        where: {
+          pelada_id: peladaId
+        }
+      });
+
+      const timesCriados = [];
+
+      for (let index = 0; index < timesNormalizados.length; index++) {
+        const timeSnapshot = timesNormalizados[index];
+
+        const somaEstrelas = timeSnapshot.jogadores.reduce(
+          (total, jogadorId) => {
+            const jogador = dadosJogadores.get(jogadorId);
+
+            return total + Number(jogador?.nivel_estrelas || 0);
+          },
+          0
+        );
+
+        const timeCriado = await tx.timePelada.create({
+          data: {
+            nome_time: timeSnapshot.nome_time,
+            cor: timeSnapshot.cor,
+            soma_estrelas: somaEstrelas,
+            pelada_id: peladaId,
+            gols: 0,
+            ordem: index + 1,
+            em_jogo: timeSnapshot.em_jogo,
+            jogadores: {
+              create: timeSnapshot.jogadores.map((jogadorId) => ({
+                jogador_id: jogadorId
+              }))
+            }
+          },
+          include: {
+            jogadores: {
+              include: {
+                jogador: true
+              }
+            }
+          }
+        });
+
+        timesCriados.push(timeCriado);
+      }
+
+      await tx.pelada.update({
+        where: {
+          id: peladaId
+        },
+        data: {
+          placar_time1: 0,
+          placar_time2: 0,
+          tempo_restante: null,
+          cronometro_ativo: false
+        }
+      });
+
+      return timesCriados;
+    });
+
+    return res.json({
+      message: "Formação anterior restaurada com sucesso",
+      times: resultado
+    });
+  } catch (error) {
+    console.error("Erro ao restaurar times:", error);
+
+    return res.status(error.status || 500).json({
+      error: error.message || "Erro ao restaurar formação dos times"
+    });
+  }
+};

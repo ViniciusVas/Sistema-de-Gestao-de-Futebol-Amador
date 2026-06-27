@@ -2,9 +2,7 @@ import { prisma } from "../config/prisma.js";
 import { io } from "../server.js";
 
 export const registrarEvento = async (req, res) => {
-
   try {
-
     const { id } = req.params;
 
     const {
@@ -14,7 +12,13 @@ export const registrarEvento = async (req, res) => {
       jogador_assistencia_id
     } = req.body;
 
-    // validar tipo
+    const peladaId = Number(id);
+    const timeId = Number(time_id);
+    const jogadorId = Number(jogador_id);
+    const assistenciaId = jogador_assistencia_id
+      ? Number(jogador_assistencia_id)
+      : null;
+
     const tiposValidos = [
       "gol",
       "cartao_amarelo",
@@ -27,20 +31,15 @@ export const registrarEvento = async (req, res) => {
       });
     }
 
-    // validar assistência para si mesmo
-    if (
-      jogador_assistencia_id &&
-      Number(jogador_assistencia_id) === Number(jogador_id)
-    ) {
+    if (assistenciaId && assistenciaId === jogadorId) {
       return res.status(400).json({
         erro: "Jogador não pode dar assistência para si mesmo"
       });
     }
 
-    // verificar pelada
     const pelada = await prisma.pelada.findUnique({
       where: {
-        id: Number(id)
+        id: peladaId
       }
     });
 
@@ -50,10 +49,9 @@ export const registrarEvento = async (req, res) => {
       });
     }
 
-    // verificar time
     const time = await prisma.timePelada.findUnique({
       where: {
-        id: Number(time_id)
+        id: timeId
       }
     });
 
@@ -63,17 +61,15 @@ export const registrarEvento = async (req, res) => {
       });
     }
 
-    // verificar se time pertence à pelada
-    if (time.pelada_id !== Number(id)) {
+    if (time.pelada_id !== peladaId) {
       return res.status(400).json({
         erro: "Time não pertence à pelada"
       });
     }
 
-    // verificar jogador
     const jogador = await prisma.jogador.findUnique({
       where: {
-        id: Number(jogador_id)
+        id: jogadorId
       }
     });
 
@@ -83,11 +79,10 @@ export const registrarEvento = async (req, res) => {
       });
     }
 
-    // verificar se jogador pertence ao time
     const jogadorNoTime = await prisma.timeJogador.findFirst({
       where: {
-        time_id: Number(time_id),
-        jogador_id: Number(jogador_id)
+        time_id: timeId,
+        jogador_id: jogadorId
       }
     });
 
@@ -97,12 +92,10 @@ export const registrarEvento = async (req, res) => {
       });
     }
 
-    // validar assistência
-    if (jogador_assistencia_id) {
-
+    if (assistenciaId) {
       const assistente = await prisma.jogador.findUnique({
         where: {
-          id: Number(jogador_assistencia_id)
+          id: assistenciaId
         }
       });
 
@@ -112,11 +105,10 @@ export const registrarEvento = async (req, res) => {
         });
       }
 
-      // verificar se assistente pertence ao mesmo time
       const assistenteNoTime = await prisma.timeJogador.findFirst({
         where: {
-          time_id: Number(time_id),
-          jogador_id: Number(jogador_assistencia_id)
+          time_id: timeId,
+          jogador_id: assistenciaId
         }
       });
 
@@ -127,30 +119,22 @@ export const registrarEvento = async (req, res) => {
       }
     }
 
-    // calcular minuto automaticamente
     const minutoAtual = Math.floor(
       (
-        (pelada.duracao_minutos * 60) -
-        (pelada.tempo_restante || 0)
+        Number(pelada.duracao_minutos || 0) * 60 -
+        Number(pelada.tempo_restante || 0)
       ) / 60
     );
 
-    // criar evento
     const evento = await prisma.eventoJogo.create({
       data: {
-        pelada_id: Number(id),
+        pelada_id: peladaId,
         tipo,
-        time_id: Number(time_id),
-        jogador_id: Number(jogador_id),
-
-        jogador_assistencia_id:
-          jogador_assistencia_id
-            ? Number(jogador_assistencia_id)
-            : null,
-
+        time_id: timeId,
+        jogador_id: jogadorId,
+        jogador_assistencia_id: assistenciaId,
         minuto: minutoAtual
       },
-
       include: {
         jogador: true,
         jogadorAssistencia: true,
@@ -158,15 +142,11 @@ export const registrarEvento = async (req, res) => {
       }
     });
 
-    // atualizar placar se for gol
     if (tipo === "gol") {
-
-      // incrementar gols do time
       await prisma.timePelada.update({
         where: {
-          id: Number(time_id)
+          id: timeId
         },
-
         data: {
           gols: {
             increment: 1
@@ -174,91 +154,73 @@ export const registrarEvento = async (req, res) => {
         }
       });
 
-      // buscar times jogando
-      const timesJogando = await prisma.timePelada.findMany({
+      const timesJogandoAtualizados = await prisma.timePelada.findMany({
         where: {
-          pelada_id: Number(id),
+          pelada_id: peladaId,
           em_jogo: true
         },
-
         orderBy: {
           ordem: "asc"
         }
       });
 
-      // atualizar placar da pelada
-      if (timesJogando.length >= 2) {
-
-        const time1Atualizado =
-          timesJogando[0].id === Number(time_id)
-            ? timesJogando[0].gols + 1
-            : timesJogando[0].gols;
-
-        const time2Atualizado =
-          timesJogando[1].id === Number(time_id)
-            ? timesJogando[1].gols + 1
-            : timesJogando[1].gols;
+      if (timesJogandoAtualizados.length >= 2) {
+        const placarTime1 = Number(timesJogandoAtualizados[0].gols || 0);
+        const placarTime2 = Number(timesJogandoAtualizados[1].gols || 0);
 
         await prisma.pelada.update({
           where: {
-            id: Number(id)
+            id: peladaId
           },
-
           data: {
-            placar_time1: time1Atualizado,
-            placar_time2: time2Atualizado
+            placar_time1: placarTime1,
+            placar_time2: placarTime2
           }
+        });
+
+        io.to(`pelada-${peladaId}`).emit("placar:atualizar", {
+          peladaId,
+          placar_time1: placarTime1,
+          placar_time2: placarTime2
         });
       }
     }
 
-    // emitir websocket
-    io.to(`pelada-${id}`).emit(
-      "evento:novo",
-      evento
-    );
+    io.to(`pelada-${peladaId}`).emit("evento:novo", evento);
 
-    res.status(201).json(evento);
-
+    return res.status(201).json(evento);
   } catch (error) {
-
     console.log(error);
 
-    res.status(500).json({
+    return res.status(500).json({
       erro: "Erro ao registrar evento"
     });
   }
 };
 
 export const listarEventos = async (req, res) => {
-
   try {
-
     const { id } = req.params;
 
     const eventos = await prisma.eventoJogo.findMany({
       where: {
         pelada_id: Number(id)
       },
-
       include: {
         jogador: true,
         jogadorAssistencia: true,
         time: true
       },
-
       orderBy: {
         created_at: "desc"
       }
     });
 
-    res.json(eventos);
-
+    return res.json(eventos);
   } catch (error) {
-
     console.log(error);
 
-    res.status(500).json({
+    return res.status(500).json({
       erro: "Erro ao listar eventos"
     });
   }
