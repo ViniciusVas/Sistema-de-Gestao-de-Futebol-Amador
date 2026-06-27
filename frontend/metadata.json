@@ -1,0 +1,6 @@
+{
+  "name": "FutGestão",
+  "description": "Sistema completo para organização e gestão de peladas com suporte a sorteio equilibrado, controle financeiro e súmula ao vivo.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
